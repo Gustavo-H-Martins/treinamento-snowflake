@@ -2,7 +2,8 @@
 CREATE OR REPLACE STAGE raw_alunos_stage;
 
 -- Carrega o arquivo CSV no estágio
-PUT file://path_to_your_file/alunos.csv @raw_alunos_stage AUTO_COMPRESS=TRUE;
+SET caminho_do_arquivo = './alunos.csv';
+PUT file://${caminho_do_arquivo} @raw_alunos_stage AUTO_COMPRESS=TRUE;
 
 -- Copia os dados do CSV para a tabela raw_alunos
 COPY INTO raw_alunos
