@@ -16,20 +16,13 @@ FROM
     trusted_alunos;
 
 -- Matérias Mais Populares
-WITH disciplinas_explodidas AS (
-    SELECT 
-        disciplina.value:disciplina::STRING AS disciplina_nome
-    FROM 
-        trusted_disciplinas,
-        LATERAL FLATTEN(input => PARSE_JSON(disciplinas)) AS disciplina
-)
 SELECT 
-    disciplina_nome, 
+    disciplina, 
     COUNT(*) AS frequencia
 FROM 
-    disciplinas_explodidas
+    trusted_disciplinas
 GROUP BY 
-    disciplina_nome
+    disciplina
 ORDER BY 
     frequencia DESC;
 
@@ -43,7 +36,6 @@ CREATE OR REPLACE FUNCTION mask_email(email STRING)
 RETURNS STRING
 LANGUAGE PYTHON
 RUNTIME_VERSION = '3.8'
-PACKAGES = ('re')  -- Importação de pacotes necessários
 HANDLER = 'mask_email'
 AS
 $$

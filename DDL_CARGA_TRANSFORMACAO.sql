@@ -1,8 +1,17 @@
+-- Criação do Database para armazenar nossas tabelas
+CREATE DATABASE IF NOT EXISTS LAB_SNOWFLAKE;
+
+-- Define o Database a ser utilizado 
+USE DATABASE LAB_SNOWFLAKE;
+
+-- Cria e define o esquema a ser utilizado
+CREATE SCHEMA IF NOT EXISTS SCHEMA_LAB;
+
 -- Criação da Tabela base de Alunos
 CREATE OR REPLACE TABLE raw_alunos (
     nome STRING,
-    disciplinas STRING,  -- Armazenará o JSON como string
-    enderecos STRING,     -- Armazenará o JSON como string
+    disciplinas VARIANT,  -- Armazenará o JSON como VARIANT
+    enderecos VARIANT,     -- Armazenará o JSON como VARIANT
     periodo STRING,
     data_matricula DATE,
     data_nascimento DATE,
@@ -11,28 +20,14 @@ CREATE OR REPLACE TABLE raw_alunos (
     data_prevista_conclusao DATE
 );
 
--- Cria um estágio interno (opcional se você já tiver um estágio definido)
-CREATE OR REPLACE STAGE raw_alunos_stage;
-
--- Carrega o arquivo CSV no estágio
-SET caminho_do_arquivo = './alunos.csv';
-PUT file://${caminho_do_arquivo} @raw_alunos_stage AUTO_COMPRESS=TRUE;
-
--- Copia os dados do CSV para a tabela raw_alunos
-COPY INTO raw_alunos
-FROM @raw_alunos_stage/alunos.csv.gz  -- Assumindo que o arquivo foi comprimido automaticamente
-FILE_FORMAT = (TYPE = 'CSV' FIELD_OPTIONALLY_ENCLOSED_BY = '"' SKIP_HEADER = 1)
-ON_ERROR = 'CONTINUE';  -- Opcional: Especifica o comportamento em caso de erros
-
 -- Verifica o carregamento dos dados
 SELECT * FROM raw_alunos;
-
 
 -- Tabela de Alunos (trusted_alunos)
 /*
      Contém dados mais diretos e detalhados sobre cada aluno, excluindo informações como disciplinas e endereços, que são tratadas em tabelas separadas.
 */
-CREATE TABLE trusted_alunos AS
+CREATE OR REPLACE TABLE trusted_alunos AS
 SELECT 
     nome,
     periodo,
@@ -44,36 +39,40 @@ SELECT
 FROM 
     raw_alunos;
 
+SELECT * FROM trusted_alunos;
 
 -- Tabela de Disciplinas (trusted_disciplinas)
 /*
     Normaliza a relação de disciplinas de cada aluno, transformando a lista de disciplinas em várias linhas com um relacionamento um para muitos.
 */
-CREATE TABLE trusted_disciplinas AS
+CREATE OR REPLACE TABLE trusted_disciplinas AS
 SELECT 
     nome,
-    disciplina::STRING AS disciplina,
-    disciplina_id::INTEGER AS disciplina_id
+    REPLACE(disciplina.value:disciplina, '"', '') AS disciplina,
+    disciplina.value:disciplina_id AS disciplina_id
 FROM 
     raw_alunos,
-    LATERAL FLATTEN(input => PARSE_JSON(disciplinas)) AS disciplina;
+    LATERAL FLATTEN(input => parse_json(disciplinas)) AS disciplina;
 
+SELECT * FROM trusted_disciplinas;
 
 -- Tabela de Endereços (trusted_enderecos)
 /*
      Armazena múltiplos endereços e emails associados a cada aluno, gerando múltiplas linhas para diferentes combinações de endereços e emails.
 */
-CREATE TABLE trusted_enderecos AS
+CREATE OR REPLACE TABLE trusted_enderecos AS
 SELECT 
     nome,
-    endereco.value:rua::STRING AS rua,
-    endereco.value:numero::STRING AS numero,
-    endereco.value:bairro::STRING AS bairro,
-    endereco.value:cidade::STRING AS cidade,
-    endereco.value:estado::STRING AS estado,
-    endereco.value:cep::STRING AS cep,
-    email.value::STRING AS email
+    REPLACE(endereco.value:rua, '"', '') AS rua,
+    REPLACE(endereco.value:numero, '"', '') AS numero,
+    REPLACE(endereco.value:bairro, '"', '') AS bairro,
+    REPLACE(endereco.value:cidade, '"', '') AS cidade,
+    REPLACE(endereco.value:estado, '"', '') AS estado,
+    REPLACE(endereco.value:cep, '"', '') AS cep,
+    REPLACE(email.value, '"', '') AS email
 FROM 
     raw_alunos,
     LATERAL FLATTEN(input => PARSE_JSON(enderecos)) AS endereco,
     LATERAL FLATTEN(input => endereco.value:emails) AS email;
+
+SELECT * FROM trusted_enderecos
